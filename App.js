@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  StyleSheet, Text, View, TouchableOpacity
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput
 } from 'react-native';
+import Dialog from 'react-native-dialog';
 
 const withLeadingZero = (seconds) => (seconds >= 10 ? seconds : `0${seconds}`);
 const printMinutesSeconds = (seconds) => `${Math.floor(seconds / 60)}:${withLeadingZero(seconds % 60)}`;
@@ -55,12 +60,33 @@ const Button = ({ label, onPress }) => (
 );
 
 export default function App() {
-  // Config
+  // Saved Intervals
+  const [savedIntervalSettings, setSavedIntervalSettings] = useState([]);
+  const [intervalSaveName, setIntervalSaveName] = useState('');
+  const [isSaveDialogShown, setIsSaveDialogShown] = useState(false);
+
+  const saveIntervalSettings = () => {
+    if (
+      intervalSaveName
+      && !savedIntervalSettings.find((save) => save.name === intervalSaveName)
+    ) {
+      setSavedIntervalSettings([...savedIntervalSettings, {
+        name: intervalSaveName,
+        sets: setsCount,
+        work: workDuration,
+        rest: restDuration
+      }]);
+      setIntervalSaveName('');
+      setIsSaveDialogShown(false);
+    }
+  };
+
+  // Config Interval Settings
   const [workDuration, setWorkDuration] = useState(DEFAULT_WORK_DURATION);
   const [restDuration, setRestDuration] = useState(DEFAULT_REST_DURATION);
   const [setsCount, setSetsCount] = useState(DEFAULT_SET_COUNT);
 
-  // Current
+  // Active Interval Settings
   const [currentSetsLeft, setCurrentSetsLeft] = useState(0);
   const [currentWorkDuration, setCurrentWorkDuration] = useState(0);
   const [currentRestDuration, setCurrentRestDuration] = useState(0);
@@ -112,11 +138,15 @@ export default function App() {
     currentWorkDuration
   ]);
 
-  const startTimer = () => {
-    setCurrentSetsLeft(setsCount);
-    setCurrentRestDuration(restDuration);
-    setCurrentWorkDuration(workDuration);
-    setTimer(workDuration);
+  const startTimer = ({
+    sets,
+    rest,
+    work
+  }) => {
+    setCurrentSetsLeft(sets);
+    setCurrentRestDuration(rest);
+    setCurrentWorkDuration(work);
+    setTimer(work);
     setCountdownStatus(STATUS_COUNTDOWN.WORK);
     resumeTimer();
   };
@@ -145,7 +175,14 @@ export default function App() {
 
       return (
         <>
-          <Button label="Restart" onPress={startTimer} />
+          <Button
+            label="Restart"
+            onPress={() => startTimer({
+              sets: setsCount,
+              work: workDuration,
+              rest: restDuration
+            })}
+          />
           <Button label="Quit" onPress={quitCountdown} />
         </>
       );
@@ -166,27 +203,60 @@ export default function App() {
   };
 
   return (
-    <View style={styles.container}>
-      <Control label="SETS" field={setsCount} updateField={setSetsCount} />
-      <Control
-        label="WORK"
-        field={workDuration}
-        updateField={setWorkDuration}
-        renderField={printMinutesSeconds}
-      />
-      <Control
-        label="REST"
-        field={restDuration}
-        updateField={setRestDuration}
-        renderField={printMinutesSeconds}
-      />
-      {
-        (countdownStatus === STATUS_COUNTDOWN.HOME)
-        && <Button label="Start Timer" onPress={startTimer} />
-      }
-      <View style={styles.horizontalBreak} />
-      {renderActiveTimerPanel()}
-    </View>
+    <>
+      <View style={styles.container}>
+        <Control label="SETS" field={setsCount} updateField={setSetsCount} />
+        <Control
+          label="WORK"
+          field={workDuration}
+          updateField={setWorkDuration}
+          renderField={printMinutesSeconds}
+        />
+        <Control
+          label="REST"
+          field={restDuration}
+          updateField={setRestDuration}
+          renderField={printMinutesSeconds}
+        />
+        <Button
+          label="SAVE"
+          onPress={() => setIsSaveDialogShown(true)}
+        />
+        {
+          (countdownStatus === STATUS_COUNTDOWN.HOME)
+          && (
+            <Button
+              label="Start Timer"
+              onPress={() => startTimer({
+                sets: setsCount,
+                work: workDuration,
+                rest: restDuration
+              })}
+            />
+          )
+        }
+        <View style={styles.horizontalBreak} />
+        {
+          savedIntervalSettings.map((save, i) => (
+            <View key={save.name}>
+              <Text>{save.name}</Text>
+            </View>
+          ))
+        }
+        <View style={styles.horizontalBreak} />
+        {renderActiveTimerPanel()}
+        <Dialog.Container visible={isSaveDialogShown}>
+          <Dialog.Title>Name</Dialog.Title>
+          <TextInput
+            placeholder="Name"
+            onChangeText={(text) => setIntervalSaveName(text)}
+            defaultValue={intervalSaveName}
+          />
+          <Dialog.Button label="Cancel" onPress={() => setIsSaveDialogShown(false)} />
+          <Dialog.Button label="Save" onPress={saveIntervalSettings} />
+        </Dialog.Container>
+      </View>
+    </>
   );
 }
 
