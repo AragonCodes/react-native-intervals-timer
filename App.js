@@ -6,39 +6,61 @@ import {
 const withLeadingZero = (seconds) => (seconds >= 10 ? seconds : `0${seconds}`);
 const printMinutesSeconds = (seconds) => `${Math.floor(seconds / 60)}:${withLeadingZero(seconds % 60)}`;
 const printTimer = (seconds) => ((seconds >= 60) ? printMinutesSeconds(seconds) : `${seconds}`);
-const maxTimerDuration = 59 * 60 + 59; // MAX TIMER => 59:59
+
 const STATUS_COUNTDOWN = {
   HOME: 'HOME',
   WORK: 'WORK',
   REST: 'REST',
   FINISHED: 'FINISHED'
 };
+const DEFAULT_SET_COUNT = 1;
+const DEFAULT_WORK_DURATION = 5;
+const DEFAULT_REST_DURATION = 5;
 
-const HorizontalBreak = () => (
-  <View style={styles.horizontalBreak} />
+const Control = ({
+  field,
+  updateField,
+  renderField,
+  label
+}) => {
+  const increaseState = () => updateField((state) => state + 1);
+  const decreaseState = () => updateField((state) => ((state - 1 <= 0) ? 0 : state - 1));
+
+  return (
+    <View>
+      <Text style={styles.indicatorLabel}>{label}</Text>
+      <View style={styles.indicatorContainer}>
+        <TouchableOpacity style={styles.toggleButton} onPress={decreaseState}>
+          <Text style={styles.toggleButtonText}>-</Text>
+        </TouchableOpacity>
+        <Text style={styles.indicator}>
+          {
+            renderField
+              ? renderField(field)
+              : field
+          }
+        </Text>
+        <TouchableOpacity style={styles.toggleButton} onPress={increaseState}>
+          <Text style={styles.toggleButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const Button = ({ label, onPress }) => (
+  <TouchableOpacity style={styles.button} onPress={onPress}>
+    <Text style={styles.buttonText}>{label}</Text>
+  </TouchableOpacity>
 );
 
 export default function App() {
-  const [workDuration, setWorkDuration] = useState(5);
-  const increaseWorkDuration = () => setWorkDuration((state) => state + 1);
-  const decreaseWorkDuration = () => {
-    setWorkDuration((state) => ((state - 1) > 0 ? state - 1 : 0));
-  };
+  // Config
+  const [workDuration, setWorkDuration] = useState(DEFAULT_WORK_DURATION);
+  const [restDuration, setRestDuration] = useState(DEFAULT_REST_DURATION);
+  const [setsCount, setSetsCount] = useState(DEFAULT_SET_COUNT);
 
-  const [restDuration, setRestDuration] = useState(5);
-  const increaseRestDuration = () => { setRestDuration((state) => ((state + 1) < maxTimerDuration ? state + 1 : maxTimerDuration)); };
-  const decreaseRestDuration = () => {
-    setRestDuration((state) => ((state - 1) > 0 ? state - 1 : 0));
-  };
-
-  const [setsCount, setSetsCount] = useState(1);
-  const increaseSetsCount = () => {
-    setSetsCount((state) => ((state + 1) < maxTimerDuration ? state + 1 : maxTimerDuration));
-  };
-  const decreaseSetsCount = () => {
-    setSetsCount((state) => ((state - 1) > 0 ? state - 1 : 0));
-  };
-
+  // Current
   const [currentSetsLeft, setCurrentSetsLeft] = useState(0);
   const [currentWorkDuration, setCurrentWorkDuration] = useState(0);
   const [currentRestDuration, setCurrentRestDuration] = useState(0);
@@ -46,10 +68,10 @@ export default function App() {
 
   const [isCounting, setIsCounting] = useState(false);
   const stopTimer = () => setIsCounting(false);
-  const startTimer = () => setIsCounting(true);
+  const resumeTimer = () => setIsCounting(true);
 
   const [timer, setTimer] = useState(workDuration);
-  const decreaseCountdown = () => setTimer((state) => ((state - 1) > 0 ? state - 1 : 0));
+  const timerTick = () => setTimer((state) => ((state - 1) > 0 ? state - 1 : 0));
 
   useEffect(() => {
     let timeout;
@@ -60,7 +82,7 @@ export default function App() {
 
     if (isCounting) {
       timeout = setTimeout(() => {
-        decreaseCountdown();
+        timerTick();
         if (timer - 1 === 0) {
           if (countdownStatus === STATUS_COUNTDOWN.WORK) {
             if (currentSetsLeft > 1) {
@@ -90,13 +112,13 @@ export default function App() {
     currentWorkDuration
   ]);
 
-  const startCountdown = () => {
+  const startTimer = () => {
     setCurrentSetsLeft(setsCount);
     setCurrentRestDuration(restDuration);
     setCurrentWorkDuration(workDuration);
     setTimer(workDuration);
     setCountdownStatus(STATUS_COUNTDOWN.WORK);
-    startTimer();
+    resumeTimer();
   };
 
   const quitCountdown = () => {
@@ -109,34 +131,22 @@ export default function App() {
 
     const PanelOptions = () => {
       if (isCounting) {
-        return (
-          <TouchableOpacity style={styles.button} onPress={stopTimer}>
-            <Text style={styles.buttonText}>Stop</Text>
-          </TouchableOpacity>
-        );
+        return <Button label="Stop" onPress={stopTimer} />;
       }
 
       if (countdownStatus !== STATUS_COUNTDOWN.FINISHED) {
         return (
           <>
-            <TouchableOpacity style={styles.button} onPress={startTimer}>
-              <Text style={styles.buttonText}>Resume</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={quitCountdown}>
-              <Text style={styles.buttonText}>Quit</Text>
-            </TouchableOpacity>
+            <Button label="Resume" onPress={resumeTimer} />
+            <Button label="Quit" onPress={quitCountdown} />
           </>
         );
       }
 
       return (
         <>
-          <TouchableOpacity style={styles.button} onPress={startCountdown}>
-            <Text style={styles.buttonText}>Restart</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={quitCountdown}>
-            <Text style={styles.buttonText}>Quit</Text>
-          </TouchableOpacity>
+          <Button label="Restart" onPress={startTimer} />
+          <Button label="Quit" onPress={quitCountdown} />
         </>
       );
     };
@@ -146,7 +156,7 @@ export default function App() {
         <Text>
           {`Set #${currentSetsLeft}`}
         </Text>
-        <Text style={[styles.indicatorLabel, {}]}>
+        <Text style={styles.indicatorLabel}>
           {countdownStatus}
         </Text>
         <Text style={{ marginHorizontal: 15, fontSize: 30, fontWeight: 'bold' }}>{printTimer(timer)}</Text>
@@ -157,54 +167,24 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <View>
-        <Text style={styles.indicatorLabel}>
-          SETS
-        </Text>
-        <View style={styles.indicatorContainer}>
-          <TouchableOpacity style={[styles.toggleButton, { paddingBottom: 3 }]} onPress={decreaseSetsCount}>
-            <Text style={styles.toggleButtonText}>-</Text>
-          </TouchableOpacity>
-          <Text style={styles.indicator}>{setsCount}</Text>
-          <TouchableOpacity style={styles.toggleButton} onPress={increaseSetsCount}>
-            <Text style={styles.toggleButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View>
-        <Text style={styles.indicatorLabel}>
-          WORK
-        </Text>
-        <View style={styles.indicatorContainer}>
-          <TouchableOpacity style={[styles.toggleButton, { paddingBottom: 3 }]} onPress={decreaseWorkDuration}>
-            <Text style={styles.toggleButtonText}>-</Text>
-          </TouchableOpacity>
-          <Text style={styles.indicator}>{printMinutesSeconds(workDuration)}</Text>
-          <TouchableOpacity style={styles.toggleButton} onPress={increaseWorkDuration}>
-            <Text style={styles.toggleButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View>
-        <Text style={styles.indicatorLabel}>
-          REST
-        </Text>
-        <View style={styles.indicatorContainer}>
-          <TouchableOpacity style={[styles.toggleButton, { paddingBottom: 3 }]} onPress={decreaseRestDuration}>
-            <Text style={styles.toggleButtonText}>-</Text>
-          </TouchableOpacity>
-          <Text style={styles.indicator}>{printMinutesSeconds(restDuration)}</Text>
-          <TouchableOpacity style={styles.toggleButton} onPress={increaseRestDuration}>
-            <Text style={styles.toggleButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      {(countdownStatus !== STATUS_COUNTDOWN.HOME) ? null : (
-        <TouchableOpacity style={styles.button} onPress={startCountdown}>
-          <Text style={styles.buttonText}>Start Timer</Text>
-        </TouchableOpacity>
-      )}
-      <HorizontalBreak />
+      <Control label="SETS" field={setsCount} updateField={setSetsCount} />
+      <Control
+        label="WORK"
+        field={workDuration}
+        updateField={setWorkDuration}
+        renderField={printMinutesSeconds}
+      />
+      <Control
+        label="REST"
+        field={restDuration}
+        updateField={setRestDuration}
+        renderField={printMinutesSeconds}
+      />
+      {
+        (countdownStatus === STATUS_COUNTDOWN.HOME)
+        && <Button label="Start Timer" onPress={startTimer} />
+      }
+      <View style={styles.horizontalBreak} />
       {renderActiveTimerPanel()}
     </View>
   );
@@ -249,9 +229,6 @@ const styles = StyleSheet.create({
   indicator: {
     fontSize: 30,
     fontWeight: 'bold'
-  },
-  indicatorLabel: {
-    alignSelf: 'center'
   },
   indicatorContainer: {
     flexDirection: 'row',
