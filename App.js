@@ -7,9 +7,12 @@ const withLeadingZero = (seconds) => (seconds >= 10 ? seconds : `0${seconds}`);
 const printMinutesSeconds = (seconds) => `${Math.floor(seconds / 60)}:${withLeadingZero(seconds % 60)}`;
 const printTimer = (seconds) => ((seconds >= 60) ? printMinutesSeconds(seconds) : `${seconds}`);
 const maxTimerDuration = 59 * 60 + 59; // MAX TIMER => 59:59
-const STATUS_COUNTDOWN_WORK = 'WORK';
-const STATUS_COUNTDOWN_REST = 'REST';
-const STATUS_COUNTDOWN_FINISHED = 'FINISHED';
+const STATUS_COUNTDOWN = {
+  HOME: 'HOME',
+  WORK: 'WORK',
+  REST: 'REST',
+  FINISHED: 'FINISHED'
+};
 
 const HorizontalBreak = () => (
   <View style={styles.horizontalBreak} />
@@ -23,9 +26,7 @@ export default function App() {
   };
 
   const [restDuration, setRestDuration] = useState(5);
-  const increaseRestDuration = () => {
-    setRestDuration((state) => ((state + 1) < maxTimerDuration ? state + 1 : maxTimerDuration));
-  };
+  const increaseRestDuration = () => { setRestDuration((state) => ((state + 1) < maxTimerDuration ? state + 1 : maxTimerDuration)); };
   const decreaseRestDuration = () => {
     setRestDuration((state) => ((state - 1) > 0 ? state - 1 : 0));
   };
@@ -41,27 +42,37 @@ export default function App() {
   const [currentSetsLeft, setCurrentSetsLeft] = useState(0);
   const [currentWorkDuration, setCurrentWorkDuration] = useState(0);
   const [currentRestDuration, setCurrentRestDuration] = useState(0);
-  const [countdownStatus, setCountdownStatus] = useState('');
+  const [countdownStatus, setCountdownStatus] = useState(STATUS_COUNTDOWN.HOME);
+
+  const [isCounting, setIsCounting] = useState(false);
+  const stopTimer = () => setIsCounting(false);
+  const startTimer = () => setIsCounting(true);
 
   const [timer, setTimer] = useState(workDuration);
   const decreaseCountdown = () => setTimer((state) => ((state - 1) > 0 ? state - 1 : 0));
 
   useEffect(() => {
     let timeout;
-    if (countdownStatus && countdownStatus !== STATUS_COUNTDOWN_FINISHED) {
+
+    if (!isCounting && timeout) {
+      clearTimeout(timeout);
+    }
+
+    if (isCounting) {
       timeout = setTimeout(() => {
         decreaseCountdown();
         if (timer - 1 === 0) {
-          if (countdownStatus === STATUS_COUNTDOWN_WORK) {
+          if (countdownStatus === STATUS_COUNTDOWN.WORK) {
             if (currentSetsLeft > 1) {
               setTimer(currentRestDuration);
-              setCountdownStatus(STATUS_COUNTDOWN_REST);
+              setCountdownStatus(STATUS_COUNTDOWN.REST);
             } else {
-              setCountdownStatus(STATUS_COUNTDOWN_FINISHED);
+              setCountdownStatus(STATUS_COUNTDOWN.FINISHED);
+              stopTimer();
             }
-          } else if (countdownStatus === STATUS_COUNTDOWN_REST) {
+          } else if (countdownStatus === STATUS_COUNTDOWN.REST) {
             setTimer(currentWorkDuration);
-            setCountdownStatus(STATUS_COUNTDOWN_WORK);
+            setCountdownStatus(STATUS_COUNTDOWN.WORK);
             setCurrentSetsLeft((status) => status - 1);
           }
         }
@@ -70,14 +81,78 @@ export default function App() {
     return () => {
       clearTimeout(timeout);
     };
-  }, [timer]);
+  }, [
+    timer,
+    isCounting,
+    countdownStatus,
+    currentSetsLeft,
+    currentRestDuration,
+    currentWorkDuration
+  ]);
 
   const startCountdown = () => {
     setCurrentSetsLeft(setsCount);
-    setCurrentWorkDuration(workDuration);
     setCurrentRestDuration(restDuration);
-    setTimer(currentWorkDuration);
-    setCountdownStatus(STATUS_COUNTDOWN_WORK);
+    setCurrentWorkDuration(workDuration);
+    setTimer(workDuration);
+    setCountdownStatus(STATUS_COUNTDOWN.WORK);
+    startTimer();
+  };
+
+  const quitCountdown = () => {
+    stopTimer();
+    setCountdownStatus(STATUS_COUNTDOWN.HOME);
+  };
+
+  const renderActiveTimerPanel = () => {
+    if (countdownStatus === STATUS_COUNTDOWN.HOME) { return null; }
+
+    const PanelOptions = () => {
+      if (isCounting) {
+        return (
+          <TouchableOpacity style={styles.button} onPress={stopTimer}>
+            <Text style={styles.buttonText}>Stop</Text>
+          </TouchableOpacity>
+        );
+      }
+
+      if (countdownStatus !== STATUS_COUNTDOWN.FINISHED) {
+        return (
+          <>
+            <TouchableOpacity style={styles.button} onPress={startTimer}>
+              <Text style={styles.buttonText}>Resume</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={quitCountdown}>
+              <Text style={styles.buttonText}>Quit</Text>
+            </TouchableOpacity>
+          </>
+        );
+      }
+
+      return (
+        <>
+          <TouchableOpacity style={styles.button} onPress={startCountdown}>
+            <Text style={styles.buttonText}>Restart</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={quitCountdown}>
+            <Text style={styles.buttonText}>Quit</Text>
+          </TouchableOpacity>
+        </>
+      );
+    };
+
+    return (
+      <View styles={styles.container}>
+        <Text>
+          {`Set #${currentSetsLeft}`}
+        </Text>
+        <Text style={[styles.indicatorLabel, {}]}>
+          {countdownStatus}
+        </Text>
+        <Text style={{ marginHorizontal: 15, fontSize: 30, fontWeight: 'bold' }}>{printTimer(timer)}</Text>
+        <PanelOptions />
+      </View>
+    );
   };
 
   return (
@@ -124,17 +199,13 @@ export default function App() {
           </TouchableOpacity>
         </View>
       </View>
-      <TouchableOpacity style={styles.button} onPress={startCountdown}>
-        <Text style={styles.buttonText}>Start Timer</Text>
-      </TouchableOpacity>
+      {(countdownStatus !== STATUS_COUNTDOWN.HOME) ? null : (
+        <TouchableOpacity style={styles.button} onPress={startCountdown}>
+          <Text style={styles.buttonText}>Start Timer</Text>
+        </TouchableOpacity>
+      )}
       <HorizontalBreak />
-      <Text>
-        {`Set #${currentSetsLeft}`}
-      </Text>
-      <Text style={[styles.indicatorLabel, {}]}>
-        {countdownStatus}
-      </Text>
-      <Text style={{ marginHorizontal: 15, fontSize: 30, fontWeight: 'bold' }}>{printTimer(timer)}</Text>
+      {renderActiveTimerPanel()}
     </View>
   );
 }
