@@ -35,7 +35,7 @@ const Control = ({
     <View>
       <Text style={styles.indicatorLabel}>{label}</Text>
       <View style={styles.indicatorContainer}>
-        <TouchableOpacity style={styles.toggleButton} onPress={decreaseState}>
+        <TouchableOpacity style={[styles.toggleButton, { paddingBottom: 3 }]} onPress={decreaseState}>
           <Text style={styles.toggleButtonText}>-</Text>
         </TouchableOpacity>
         <Text style={styles.indicator}>
@@ -61,23 +61,26 @@ const Button = ({ label, onPress }) => (
 
 export default function App() {
   // Saved Intervals
-  const [savedIntervalSettings, setSavedIntervalSettings] = useState([]);
-  const [intervalSaveName, setIntervalSaveName] = useState('');
-  const [isSaveDialogShown, setIsSaveDialogShown] = useState(false);
+  const [presets, setPresets] = useState([]);
+  const [inputPresetNameValue, setInputPresetNameValue] = useState('');
+  const [inputPresetNameFeedback, setInputPresetNameFeedback] = useState('');
+  const [isSavePresetDialogShown, setIsSavePresetDialogShown] = useState(false);
 
-  const saveIntervalSettings = () => {
-    if (
-      intervalSaveName
-      && !savedIntervalSettings.find((save) => save.name === intervalSaveName)
-    ) {
-      setSavedIntervalSettings([...savedIntervalSettings, {
-        name: intervalSaveName,
+  const savePreset = () => {
+    if (!inputPresetNameValue) {
+      setInputPresetNameFeedback('Enter a name.');
+    } else if (presets.find((preset) => preset.name === inputPresetNameValue)) {
+      setInputPresetNameFeedback('Name already exists.');
+    } else {
+      setPresets([...presets, {
+        name: inputPresetNameValue,
         sets: setsCount,
         work: workDuration,
         rest: restDuration
       }]);
-      setIntervalSaveName('');
-      setIsSaveDialogShown(false);
+      setInputPresetNameValue('');
+      setInputPresetNameFeedback('');
+      setIsSavePresetDialogShown(false);
     }
   };
 
@@ -190,6 +193,7 @@ export default function App() {
 
     return (
       <View styles={styles.container}>
+        <View style={styles.horizontalBreak} />
         <Text>
           {`Set #${currentSetsLeft}`}
         </Text>
@@ -202,9 +206,45 @@ export default function App() {
     );
   };
 
+  const renderPresetsList = () => {
+    if (!presets.length) {
+      return null;
+    }
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.horizontalBreak} />
+        {
+          presets.map((preset) => (
+            <View key={preset.name} style={{ flexDirection: 'row' }}>
+              <View>
+                <Text style={{ fontWeight: 'bold' }}>{preset.name}</Text>
+                <Text>{`Sets: ${preset.sets}`}</Text>
+                <Text>{`Work: ${preset.work}`}</Text>
+                <Text>{`Rest: ${preset.rest}`}</Text>
+              </View>
+              <View>
+                <Button
+                  label="Select"
+                  onPress={() => startTimer(preset)}
+                />
+                <Button
+                  label="Delete"
+                  onPress={() => setPresets(
+                    presets.filter((p) => p.name !== preset.name)
+                  )}
+                />
+              </View>
+            </View>
+          ))
+        }
+      </View>
+    );
+  };
+
   return (
     <>
-      <View style={styles.container}>
+      <View style={styles.wrapper}>
         <Control label="SETS" field={setsCount} updateField={setSetsCount} />
         <Control
           label="WORK"
@@ -220,7 +260,7 @@ export default function App() {
         />
         <Button
           label="SAVE"
-          onPress={() => setIsSaveDialogShown(true)}
+          onPress={() => setIsSavePresetDialogShown(true)}
         />
         {
           (countdownStatus === STATUS_COUNTDOWN.HOME)
@@ -235,25 +275,21 @@ export default function App() {
             />
           )
         }
-        <View style={styles.horizontalBreak} />
-        {
-          savedIntervalSettings.map((save, i) => (
-            <View key={save.name}>
-              <Text>{save.name}</Text>
-            </View>
-          ))
-        }
-        <View style={styles.horizontalBreak} />
+        {renderPresetsList()}
         {renderActiveTimerPanel()}
-        <Dialog.Container visible={isSaveDialogShown}>
-          <Dialog.Title>Name</Dialog.Title>
+        <Dialog.Container visible={isSavePresetDialogShown}>
+          <Dialog.Title>Save Preset</Dialog.Title>
           <TextInput
             placeholder="Name"
-            onChangeText={(text) => setIntervalSaveName(text)}
-            defaultValue={intervalSaveName}
+            onChangeText={(text) => setInputPresetNameValue(text)}
+            defaultValue={inputPresetNameValue}
           />
-          <Dialog.Button label="Cancel" onPress={() => setIsSaveDialogShown(false)} />
-          <Dialog.Button label="Save" onPress={saveIntervalSettings} />
+          {
+            inputPresetNameFeedback
+            && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
+          }
+          <Dialog.Button label="Cancel" onPress={() => setIsSavePresetDialogShown(false)} />
+          <Dialog.Button label="Save" onPress={savePreset} />
         </Dialog.Container>
       </View>
     </>
@@ -261,8 +297,13 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  container: {
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
