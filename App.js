@@ -4,12 +4,81 @@ import {
   Text as TextNative,
   View,
   TouchableOpacity,
-  TextInput,
   ScrollView,
-  Dimensions
+  Dimensions,
+  AsyncStorage
 } from 'react-native';
 import Dialog from 'react-native-dialog';
+import { getStatusBarHeight } from 'react-native-status-bar-height';
 
+// Storage
+const Storage = {
+  async getPresets() {
+    const presetsNames = await this.getPresetsNames();
+    const presets = await Promise.all(presetsNames.map(async (presetName) => {
+      const preset = await this.getPreset(presetName);
+      return preset;
+    }));
+    return presets;
+  },
+
+  async getPresetsNames() {
+    const presetsNamesString = await AsyncStorage.getItem(this.KEY_PRESETS_NAMES);
+    const presetsNames = JSON.parse(presetsNamesString);
+    if (!presetsNames) {
+      return [];
+    }
+
+    return presetsNames;
+  },
+
+  async savePresetsNames(names) {
+    const presetsNamesString = JSON.stringify(names);
+    await await AsyncStorage.setItem(this.KEY_PRESETS_NAMES, presetsNamesString);
+  },
+
+  async getPreset(presetName) {
+    const presetKey = `${this.KEY_HEADER_PRESET}-${presetName}`;
+    const presetString = await AsyncStorage.getItem(presetKey);
+    const preset = JSON.parse(presetString);
+    return preset;
+  },
+
+  async savePreset({
+    name, sets, work, rest
+  }) {
+    const preset = {
+      name,
+      sets,
+      work,
+      rest
+    };
+
+    const presetKey = `${this.KEY_HEADER_PRESET}-${name}`;
+    const presetString = JSON.stringify(preset);
+    await AsyncStorage.setItem(presetKey, presetString);
+
+    const presetsNames = await this.getPresetsNames();
+    if (!presetsNames.find((presetName) => presetName === name)) {
+      await this.savePresetsNames([...presetsNames, name]);
+    }
+  },
+
+  async deletePreset({ name }) {
+    const presetKey = `${this.KEY_HEADER_PRESET}-${name}`;
+    await AsyncStorage.removeItem(presetKey);
+    const presetsNames = await this.getPresetsNames();
+    await this.savePresetsNames(
+      presetsNames.filter((presetName) => presetName !== name)
+    );
+  },
+
+  // CONSTANTS
+  KEY_PRESETS_NAMES: 'KEY_PRESETS_NAMES',
+  KEY_HEADER_PRESET: 'KEY_HEADER_PRESET'
+};
+
+// App
 const withLeadingZero = (seconds) => (seconds >= 10 ? seconds : `0${seconds}`);
 const printMinutesSeconds = (seconds) => `${Math.floor(seconds / 60)}:${withLeadingZero(seconds % 60)}`;
 const printTimer = (seconds) => ((seconds >= 60) ? printMinutesSeconds(seconds) : `${seconds}`);
@@ -61,7 +130,10 @@ const Control = ({
     <View>
       <Text style={styles.indicatorLabel}>{label}</Text>
       <View style={styles.indicatorContainer}>
-        <TouchableOpacity style={[styles.toggleButton, { paddingBottom: 3 }]} onPress={decreaseState}>
+        <TouchableOpacity
+          style={[styles.toggleButton, { paddingBottom: 3 }]}
+          onPress={decreaseState}
+        >
           <Text style={styles.toggleButtonText}>-</Text>
         </TouchableOpacity>
         <Text style={styles.indicator}>
@@ -80,27 +152,56 @@ const Control = ({
 };
 
 export default function App() {
-  // Saved Intervals
-  const [presets, setPresets] = useState([]);
+  // Presets
   const [inputPresetNameValue, setInputPresetNameValue] = useState('');
   const [inputPresetNameFeedback, setInputPresetNameFeedback] = useState('');
   const [isSavePresetDialogShown, setIsSavePresetDialogShown] = useState(false);
+  const [isDeletePresetDialogShown, setIsDeletePresetDialogShown] = useState(false);
+  const [currentDeletingPreset, setCurrentDeletingPreset] = useState(null);
+  const [presets, setPresets] = useState([]);
 
-  const savePreset = () => {
+  useEffect(() => {
+    const fetchPresets = async () => {
+      try {
+        const storedPresets = await Storage.getPresets();
+        setPresets(storedPresets);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchPresets();
+  }, []);
+
+  const savePreset = async () => {
     if (!inputPresetNameValue) {
       setInputPresetNameFeedback('Enter a name.');
     } else if (presets.find((preset) => preset.name === inputPresetNameValue)) {
       setInputPresetNameFeedback('Name already exists.');
     } else {
-      setPresets([...presets, {
-        name: inputPresetNameValue,
-        sets: setsCount,
-        work: workDuration,
-        rest: restDuration
-      }]);
-      setInputPresetNameValue('');
-      setInputPresetNameFeedback('');
-      setIsSavePresetDialogShown(false);
+      try {
+        const preset = {
+          name: inputPresetNameValue,
+          sets: setsCount,
+          work: workDuration,
+          rest: restDuration
+        };
+        await Storage.savePreset(preset);
+        setPresets([...presets, preset]);
+        setInputPresetNameValue('');
+        setInputPresetNameFeedback('');
+        setIsSavePresetDialogShown(false);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
+
+  const deletePreset = async (preset) => {
+    try {
+      await Storage.deletePreset(preset);
+      setPresets(presets.filter((p) => p.name !== preset.name));
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -184,6 +285,7 @@ export default function App() {
     setCountdownStatus(STATUS_COUNTDOWN.HOME);
   };
 
+  // View
   const renderActiveTimerPanel = () => {
     if (countdownStatus === STATUS_COUNTDOWN.HOME) { return null; }
 
@@ -252,9 +354,10 @@ export default function App() {
                 />
                 <Button
                   label="Delete"
-                  onPress={() => setPresets(
-                    presets.filter((p) => p.name !== preset.name)
-                  )}
+                  onPress={() => {
+                    setCurrentDeletingPreset(preset);
+                    setIsDeletePresetDialogShown(true);
+                  }}
                 />
               </View>
             </View>
@@ -264,71 +367,109 @@ export default function App() {
     );
   };
 
+  const DialogSavePreset = () => {
+    console.log('Rendering DialogSavePreset');
+    return (
+      <Dialog.Container visible={isSavePresetDialogShown}>
+        <Dialog.Title>Save Preset</Dialog.Title>
+        <Dialog.Input
+          placeholder="Name"
+          onChangeText={(text) => { console.log(text); setInputPresetNameValue(text); }}
+          defaultValue={inputPresetNameValue}
+        />
+        {
+        inputPresetNameFeedback
+        && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
+      }
+        <Dialog.Button
+          label="Cancel"
+          onPress={() => {
+            setInputPresetNameValue('');
+            setIsSavePresetDialogShown(false);
+          }}
+        />
+        <Dialog.Button label="Save" style={{ color: 'blue' }} onPress={savePreset} />
+      </Dialog.Container>
+    );
+  };
+
+  const DialogDeletePreset = () => {
+    console.log('Rendering DialogDeletePreset');
+    if (!currentDeletingPreset) {
+      return null;
+    }
+
+    return (
+      <Dialog.Container visible={isDeletePresetDialogShown}>
+        <Dialog.Title>{`Delete Preset - ${currentDeletingPreset.name}`}</Dialog.Title>
+        <Dialog.Button label="Cancel" onPress={() => setIsDeletePresetDialogShown(false)} />
+        <Dialog.Button
+          label="Delete"
+          style={{ color: 'red' }}
+          onPress={() => {
+            deletePreset(currentDeletingPreset);
+            setIsDeletePresetDialogShown(false);
+          }}
+        />
+      </Dialog.Container>
+    );
+  };
+
   return (
-    <>
-      <ScrollView contentContainerStyle={styles.wrapper}>
-        <View>
-          <Control label="SETS" field={setsCount} updateField={setSetsCount} />
-          <Control
-            label="WORK"
-            field={workDuration}
-            updateField={setWorkDuration}
-            renderField={printMinutesSeconds}
-          />
-          <Control
-            label="REST"
-            field={restDuration}
-            updateField={setRestDuration}
-            renderField={printMinutesSeconds}
-          />
-          <Button
-            label="SAVE"
-            onPress={() => setIsSavePresetDialogShown(true)}
-          />
-          {
-            (countdownStatus === STATUS_COUNTDOWN.HOME)
-            && (
-              <Button
-                label="Start Timer"
-                onPress={() => startTimer({
-                  sets: setsCount,
-                  work: workDuration,
-                  rest: restDuration
-                })}
-              />
-            )
-          }
-          {renderPresetsList()}
-          {renderActiveTimerPanel()}
-          <Dialog.Container visible={isSavePresetDialogShown}>
-            <Dialog.Title>Save Preset</Dialog.Title>
-            <TextInput
-              placeholder="Name"
-              onChangeText={(text) => setInputPresetNameValue(text)}
-              defaultValue={inputPresetNameValue}
+    <ScrollView contentContainerStyle={styles.wrapper}>
+      <View style={styles.container}>
+        <Control label="SETS" field={setsCount} updateField={setSetsCount} />
+        <Control
+          label="WORK"
+          field={workDuration}
+          updateField={setWorkDuration}
+          renderField={printMinutesSeconds}
+        />
+        <Control
+          label="REST"
+          field={restDuration}
+          updateField={setRestDuration}
+          renderField={printMinutesSeconds}
+        />
+        <Button
+          label="SAVE"
+          onPress={() => setIsSavePresetDialogShown(true)}
+        />
+        {
+          (countdownStatus === STATUS_COUNTDOWN.HOME)
+          && (
+            <Button
+              label="Start Timer"
+              onPress={() => startTimer({
+                sets: setsCount,
+                work: workDuration,
+                rest: restDuration
+              })}
             />
-            {
-              inputPresetNameFeedback
-              && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
-            }
-            <Dialog.Button label="Cancel" onPress={() => setIsSavePresetDialogShown(false)} />
-            <Dialog.Button label="Save" onPress={savePreset} />
-          </Dialog.Container>
-        </View>
-      </ScrollView>
-    </>
+          )
+        }
+        {renderPresetsList()}
+        {renderActiveTimerPanel()}
+
+        {/* off-screen */}
+        <DialogSavePreset />
+        <DialogDeletePreset />
+      </View>
+    </ScrollView>
   );
 }
 
 // Styles
-const ScreenHeight = Dimensions.get('window').height;
 const ScreenWidth = Dimensions.get('window').width;
+const StatusBarHeight = getStatusBarHeight();
+const WrapperPadding = 5;
 const styles = StyleSheet.create({
   wrapper: {
-    height: ScreenHeight,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: WrapperPadding,
+    paddingTop: (StatusBarHeight + WrapperPadding),
   },
   container: {
     width: ScreenWidth,
