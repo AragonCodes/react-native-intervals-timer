@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
-  Text,
+  Text as TextNative,
   View,
   TouchableOpacity,
-  TextInput
+  TextInput,
+  ScrollView,
+  Dimensions
 } from 'react-native';
 import Dialog from 'react-native-dialog';
 
@@ -14,6 +16,7 @@ const printTimer = (seconds) => ((seconds >= 60) ? printMinutesSeconds(seconds) 
 
 const STATUS_COUNTDOWN = {
   HOME: 'HOME',
+  START: 'START',
   WORK: 'WORK',
   REST: 'REST',
   FINISHED: 'FINISHED'
@@ -21,6 +24,29 @@ const STATUS_COUNTDOWN = {
 const DEFAULT_SET_COUNT = 1;
 const DEFAULT_WORK_DURATION = 5;
 const DEFAULT_REST_DURATION = 5;
+const DEFAULT_START_DURATION = 5;
+
+const Text = ({
+  style, center, start, children
+}) => {
+  const alignSelf = (center)
+    ? 'center'
+    : (start)
+      ? 'start'
+      : 'auto';
+
+  return (
+    <TextNative style={[style, { alignSelf }]}>
+      {children}
+    </TextNative>
+  );
+};
+
+const Button = ({ label, onPress }) => (
+  <TouchableOpacity style={styles.button} onPress={onPress}>
+    <Text style={styles.buttonText}>{label}</Text>
+  </TouchableOpacity>
+);
 
 const Control = ({
   field,
@@ -52,12 +78,6 @@ const Control = ({
     </View>
   );
 };
-
-const Button = ({ label, onPress }) => (
-  <TouchableOpacity style={styles.button} onPress={onPress}>
-    <Text style={styles.buttonText}>{label}</Text>
-  </TouchableOpacity>
-);
 
 export default function App() {
   // Saved Intervals
@@ -121,10 +141,15 @@ export default function App() {
               setCountdownStatus(STATUS_COUNTDOWN.FINISHED);
               stopTimer();
             }
-          } else if (countdownStatus === STATUS_COUNTDOWN.REST) {
+          } else if (
+            countdownStatus === STATUS_COUNTDOWN.START
+            || countdownStatus === STATUS_COUNTDOWN.REST
+          ) {
             setTimer(currentWorkDuration);
             setCountdownStatus(STATUS_COUNTDOWN.WORK);
-            setCurrentSetsLeft((status) => status - 1);
+            if (countdownStatus === STATUS_COUNTDOWN.REST) {
+              setCurrentSetsLeft((status) => status - 1);
+            }
           }
         }
       }, 1000);
@@ -149,8 +174,8 @@ export default function App() {
     setCurrentSetsLeft(sets);
     setCurrentRestDuration(rest);
     setCurrentWorkDuration(work);
-    setTimer(work);
-    setCountdownStatus(STATUS_COUNTDOWN.WORK);
+    setTimer(DEFAULT_START_DURATION);
+    setCountdownStatus(STATUS_COUNTDOWN.START);
     resumeTimer();
   };
 
@@ -194,13 +219,10 @@ export default function App() {
     return (
       <View styles={styles.container}>
         <View style={styles.horizontalBreak} />
-        <Text>
-          {`Set #${currentSetsLeft}`}
+        <Text center>
+          {`Set #${currentSetsLeft} - ${countdownStatus}`}
         </Text>
-        <Text style={styles.indicatorLabel}>
-          {countdownStatus}
-        </Text>
-        <Text style={{ marginHorizontal: 15, fontSize: 30, fontWeight: 'bold' }}>{printTimer(timer)}</Text>
+        <Text style={{ marginHorizontal: 15, fontSize: 30, fontWeight: 'bold' }} center>{printTimer(timer)}</Text>
         <PanelOptions />
       </View>
     );
@@ -244,66 +266,72 @@ export default function App() {
 
   return (
     <>
-      <View style={styles.wrapper}>
-        <Control label="SETS" field={setsCount} updateField={setSetsCount} />
-        <Control
-          label="WORK"
-          field={workDuration}
-          updateField={setWorkDuration}
-          renderField={printMinutesSeconds}
-        />
-        <Control
-          label="REST"
-          field={restDuration}
-          updateField={setRestDuration}
-          renderField={printMinutesSeconds}
-        />
-        <Button
-          label="SAVE"
-          onPress={() => setIsSavePresetDialogShown(true)}
-        />
-        {
-          (countdownStatus === STATUS_COUNTDOWN.HOME)
-          && (
-            <Button
-              label="Start Timer"
-              onPress={() => startTimer({
-                sets: setsCount,
-                work: workDuration,
-                rest: restDuration
-              })}
-            />
-          )
-        }
-        {renderPresetsList()}
-        {renderActiveTimerPanel()}
-        <Dialog.Container visible={isSavePresetDialogShown}>
-          <Dialog.Title>Save Preset</Dialog.Title>
-          <TextInput
-            placeholder="Name"
-            onChangeText={(text) => setInputPresetNameValue(text)}
-            defaultValue={inputPresetNameValue}
+      <ScrollView contentContainerStyle={styles.wrapper}>
+        <View>
+          <Control label="SETS" field={setsCount} updateField={setSetsCount} />
+          <Control
+            label="WORK"
+            field={workDuration}
+            updateField={setWorkDuration}
+            renderField={printMinutesSeconds}
+          />
+          <Control
+            label="REST"
+            field={restDuration}
+            updateField={setRestDuration}
+            renderField={printMinutesSeconds}
+          />
+          <Button
+            label="SAVE"
+            onPress={() => setIsSavePresetDialogShown(true)}
           />
           {
-            inputPresetNameFeedback
-            && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
+            (countdownStatus === STATUS_COUNTDOWN.HOME)
+            && (
+              <Button
+                label="Start Timer"
+                onPress={() => startTimer({
+                  sets: setsCount,
+                  work: workDuration,
+                  rest: restDuration
+                })}
+              />
+            )
           }
-          <Dialog.Button label="Cancel" onPress={() => setIsSavePresetDialogShown(false)} />
-          <Dialog.Button label="Save" onPress={savePreset} />
-        </Dialog.Container>
-      </View>
+          {renderPresetsList()}
+          {renderActiveTimerPanel()}
+          <Dialog.Container visible={isSavePresetDialogShown}>
+            <Dialog.Title>Save Preset</Dialog.Title>
+            <TextInput
+              placeholder="Name"
+              onChangeText={(text) => setInputPresetNameValue(text)}
+              defaultValue={inputPresetNameValue}
+            />
+            {
+              inputPresetNameFeedback
+              && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
+            }
+            <Dialog.Button label="Cancel" onPress={() => setIsSavePresetDialogShown(false)} />
+            <Dialog.Button label="Save" onPress={savePreset} />
+          </Dialog.Container>
+        </View>
+      </ScrollView>
     </>
   );
 }
 
+// Styles
+const ScreenHeight = Dimensions.get('window').height;
+const ScreenWidth = Dimensions.get('window').width;
 const styles = StyleSheet.create({
   wrapper: {
-    flex: 1,
+    height: ScreenHeight,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   container: {
+    width: ScreenWidth,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -325,7 +353,8 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: 'blue',
     borderRadius: 5,
-    marginVertical: 10
+    marginVertical: 10,
+    alignSelf: 'center'
   },
   buttonText: {
     color: '#fff',
