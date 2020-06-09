@@ -95,7 +95,7 @@ const HomeScreen = () => {
         <View style={styles.horizontalBreak} />
         {
           presets.map((preset) => (
-            <View key={preset.name} style={{ flexDirection: 'row' }}>
+            <View key={preset.id} style={{ flexDirection: 'row' }}>
               <View>
                 <Text style={{ fontWeight: 'bold' }}>{preset.name}</Text>
                 <Text>{`Sets: ${preset.sets}`}</Text>
