@@ -367,54 +367,6 @@ export default function App() {
     );
   };
 
-  const DialogSavePreset = () => {
-    console.log('Rendering DialogSavePreset');
-    return (
-      <Dialog.Container visible={isSavePresetDialogShown}>
-        <Dialog.Title>Save Preset</Dialog.Title>
-        <Dialog.Input
-          placeholder="Name"
-          onChangeText={(text) => { console.log(text); setInputPresetNameValue(text); }}
-          defaultValue={inputPresetNameValue}
-        />
-        {
-        inputPresetNameFeedback
-        && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
-      }
-        <Dialog.Button
-          label="Cancel"
-          onPress={() => {
-            setInputPresetNameValue('');
-            setIsSavePresetDialogShown(false);
-          }}
-        />
-        <Dialog.Button label="Save" style={{ color: 'blue' }} onPress={savePreset} />
-      </Dialog.Container>
-    );
-  };
-
-  const DialogDeletePreset = () => {
-    console.log('Rendering DialogDeletePreset');
-    if (!currentDeletingPreset) {
-      return null;
-    }
-
-    return (
-      <Dialog.Container visible={isDeletePresetDialogShown}>
-        <Dialog.Title>{`Delete Preset - ${currentDeletingPreset.name}`}</Dialog.Title>
-        <Dialog.Button label="Cancel" onPress={() => setIsDeletePresetDialogShown(false)} />
-        <Dialog.Button
-          label="Delete"
-          style={{ color: 'red' }}
-          onPress={() => {
-            deletePreset(currentDeletingPreset);
-            setIsDeletePresetDialogShown(false);
-          }}
-        />
-      </Dialog.Container>
-    );
-  };
-
   return (
     <ScrollView contentContainerStyle={styles.wrapper}>
       <View style={styles.container}>
@@ -452,8 +404,41 @@ export default function App() {
         {renderActiveTimerPanel()}
 
         {/* off-screen */}
-        <DialogSavePreset />
-        <DialogDeletePreset />
+        <Dialog.Container visible={isSavePresetDialogShown}>
+          <Dialog.Title>Save Preset</Dialog.Title>
+          <Dialog.Input
+            placeholder="Name"
+            onChangeText={(text) => { console.log(text); setInputPresetNameValue(text); }}
+            defaultValue={inputPresetNameValue}
+          />
+          {
+          inputPresetNameFeedback
+          && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
+        }
+          <Dialog.Button
+            label="Cancel"
+            onPress={() => {
+              setInputPresetNameValue('');
+              setIsSavePresetDialogShown(false);
+            }}
+          />
+          <Dialog.Button label="Save" style={{ color: 'blue' }} onPress={savePreset} />
+        </Dialog.Container>
+        { currentDeletingPreset
+          && (
+          <Dialog.Container visible={isDeletePresetDialogShown}>
+            <Dialog.Title>{`Delete Preset - ${currentDeletingPreset.name}`}</Dialog.Title>
+            <Dialog.Button label="Cancel" onPress={() => setIsDeletePresetDialogShown(false)} />
+            <Dialog.Button
+              label="Delete"
+              style={{ color: 'red' }}
+              onPress={() => {
+                deletePreset(currentDeletingPreset);
+                setIsDeletePresetDialogShown(false);
+              }}
+            />
+          </Dialog.Container>
+          )}
       </View>
     </ScrollView>
   );
