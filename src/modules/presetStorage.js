@@ -52,6 +52,14 @@ const Storage = {
 
     const presetsIds = await this.getPresetsIds();
     await this.savePresetsIds([...presetsIds, presetId]);
+    return preset;
+  },
+
+  async updatePreset(preset) {
+    const presetKey = `${this.KEY_HEADER_PRESET}-${preset.id}`;
+    const presetString = JSON.stringify(preset);
+    await AsyncStorage.setItem(presetKey, presetString);
+    return preset;
   },
 
   async deletePreset({ id }) {

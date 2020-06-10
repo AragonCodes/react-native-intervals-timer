@@ -1,11 +1,11 @@
 import { StyleSheet, Dimensions } from 'react-native';
 import { getStatusBarHeight } from 'react-native-status-bar-height';
 
-const ScreenWidth = Dimensions.get('window').width;
-const StatusBarHeight = getStatusBarHeight();
-const WrapperPadding = 5;
+export const ScreenWidth = Dimensions.get('window').width;
+export const StatusBarHeight = getStatusBarHeight();
+export const WrapperPadding = 5;
 
-const styles = StyleSheet.create({
+const globalStyles = StyleSheet.create({
   wrapper: {
     backgroundColor: '#fff',
     alignItems: 'center',
@@ -27,4 +27,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default styles;
+export default globalStyles;

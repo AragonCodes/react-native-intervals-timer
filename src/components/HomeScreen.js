@@ -1,36 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   View,
   ScrollView,
+  TextInput
 } from 'react-native';
 import Dialog from 'react-native-dialog';
-import { Text, Button, Control } from './common/index';
+import {
+  Text, Button, Control
+} from './common/index';
 import PresetStorage from '../modules/presetStorage';
 import styles from '../style';
 import { printMinutesSeconds } from '../modules/format';
+import { MODIFIED_PRESET_ACTION_TYPE } from './EditPresetScreen';
 
 const DEFAULT_SET_COUNT = 1;
 const DEFAULT_WORK_DURATION = 5;
 const DEFAULT_REST_DURATION = 5;
 
-// Components
 const HomeScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+
+  // onPresetModified
+  const modifiedPresetAction = (route.params)
+    ? route.params.modifiedPresetAction
+    : null;
+
+  useEffect(() => {
+    if (modifiedPresetAction) {
+      const updatePresets = (action) => {
+        const { type, payload } = action;
+        switch (type) {
+          case MODIFIED_PRESET_ACTION_TYPE.DELETE:
+            setStoredPresets((presets) => presets.filter((preset) => preset.id !== payload.id));
+            break;
+          case MODIFIED_PRESET_ACTION_TYPE.UPDATE:
+            setStoredPresets((presets) => presets.map((preset) => ((preset.id === payload.preset.id)
+              ? payload.preset
+              : preset)));
+            break;
+          default:
+            throw new Error(`modifiedPresetAction type not identified: ${type}`);
+        }
+      };
+
+      updatePresets(modifiedPresetAction);
+    }
+  }, [modifiedPresetAction]);
 
   // Presets
   const [inputPresetNameValue, setInputPresetNameValue] = useState('');
   const [inputPresetNameFeedback, setInputPresetNameFeedback] = useState('');
   const [isSavePresetDialogShown, setIsSavePresetDialogShown] = useState(false);
-  const [isDeletePresetDialogShown, setIsDeletePresetDialogShown] = useState(false);
-  const [currentDeletingPreset, setCurrentDeletingPreset] = useState(null);
-  const [presets, setPresets] = useState([]);
+  const [storedPresets, setStoredPresets] = useState([]);
 
   useEffect(() => {
     const fetchPresets = async () => {
       try {
-        const storedPresets = await PresetStorage.getPresets();
-        setPresets(storedPresets);
+        const presets = await PresetStorage.getPresets();
+        setStoredPresets(presets);
       } catch (error) {
         console.error(error);
       }
@@ -41,8 +70,6 @@ const HomeScreen = () => {
   const savePreset = async () => {
     if (!inputPresetNameValue) {
       setInputPresetNameFeedback('Enter a name.');
-    } else if (presets.find((preset) => preset.name === inputPresetNameValue)) {
-      setInputPresetNameFeedback('Name already exists.');
     } else {
       try {
         const preset = {
@@ -52,7 +79,7 @@ const HomeScreen = () => {
           rest: restDuration
         };
         await PresetStorage.savePreset(preset);
-        setPresets([...presets, preset]);
+        setStoredPresets([...storedPresets, preset]);
         setInputPresetNameValue('');
         setInputPresetNameFeedback('');
         setIsSavePresetDialogShown(false);
@@ -62,13 +89,8 @@ const HomeScreen = () => {
     }
   };
 
-  const deletePreset = async (preset) => {
-    try {
-      await PresetStorage.deletePreset(preset);
-      setPresets(presets.filter((p) => p.name !== preset.name));
-    } catch (error) {
-      console.error(error);
-    }
+  const editPreset = async (preset) => {
+    navigation.navigate('EditPreset', preset);
   };
 
   // Config Interval Settings
@@ -76,17 +98,17 @@ const HomeScreen = () => {
   const [restDuration, setRestDuration] = useState(DEFAULT_REST_DURATION);
   const [numSets, setNumSets] = useState(DEFAULT_SET_COUNT);
 
-  const startTimer = () => {
+  const startTimer = ({ sets, work, rest }) => {
     navigation.navigate('Timer', {
-      numSets,
-      workDuration,
-      restDuration
+      sets,
+      work,
+      rest
     });
   };
 
   // Render
   const renderPresetsList = () => {
-    if (!presets.length) {
+    if (!storedPresets.length) {
       return null;
     }
 
@@ -94,7 +116,7 @@ const HomeScreen = () => {
       <View style={styles.container}>
         <View style={styles.horizontalBreak} />
         {
-          presets.map((preset) => (
+          storedPresets.map((preset) => (
             <View key={preset.id} style={{ flexDirection: 'row' }}>
               <View>
                 <Text style={{ fontWeight: 'bold' }}>{preset.name}</Text>
@@ -108,11 +130,8 @@ const HomeScreen = () => {
                   onPress={() => startTimer(preset)}
                 />
                 <Button
-                  label="Delete"
-                  onPress={() => {
-                    setCurrentDeletingPreset(preset);
-                    setIsDeletePresetDialogShown(true);
-                  }}
+                  label="Edit"
+                  onPress={() => editPreset(preset)}
                 />
               </View>
             </View>
@@ -139,23 +158,29 @@ const HomeScreen = () => {
           renderField={printMinutesSeconds}
         />
         <Button
-          label="SAVE"
+          label="Save"
           onPress={() => setIsSavePresetDialogShown(true)}
         />
         <Button
           label="Start Timer"
-          onPress={startTimer}
+          onPress={() => startTimer({
+            sets: numSets,
+            work: workDuration,
+            rest: restDuration
+          })}
         />
         {renderPresetsList()}
 
         {/* off-screen */}
         <Dialog.Container visible={isSavePresetDialogShown}>
           <Dialog.Title>Save Preset</Dialog.Title>
-          <Dialog.Input
-            placeholder="Name"
-            onChangeText={(text) => setInputPresetNameValue(text)}
-            defaultValue={inputPresetNameValue}
-          />
+          <View style={{ borderBottomColor: 'grey', borderBottomWidth: 0.5 }}>
+            <TextInput
+              placeholder="Name"
+              onChangeText={(text) => setInputPresetNameValue(text)}
+              defaultValue={inputPresetNameValue}
+            />
+          </View>
           {
           inputPresetNameFeedback
           && <Text style={{ color: 'red' }}>{inputPresetNameFeedback}</Text>
@@ -169,21 +194,6 @@ const HomeScreen = () => {
           />
           <Dialog.Button label="Save" style={{ color: 'blue' }} onPress={savePreset} />
         </Dialog.Container>
-        { currentDeletingPreset
-          && (
-          <Dialog.Container visible={isDeletePresetDialogShown}>
-            <Dialog.Title>{`Delete Preset - ${currentDeletingPreset.name}`}</Dialog.Title>
-            <Dialog.Button label="Cancel" onPress={() => setIsDeletePresetDialogShown(false)} />
-            <Dialog.Button
-              label="Delete"
-              style={{ color: 'red' }}
-              onPress={() => {
-                deletePreset(currentDeletingPreset);
-                setIsDeletePresetDialogShown(false);
-              }}
-            />
-          </Dialog.Container>
-          )}
       </View>
     </ScrollView>
   );

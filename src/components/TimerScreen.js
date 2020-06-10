@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { View } from 'react-native';
 import { Text, Button } from './common';
 import styles from '../style';
@@ -12,8 +13,14 @@ const TIMER_STATUS = {
   FINISHED: 'FINISHED'
 };
 
-const TimerScreen = ({ navigation, route }) => {
-  const { numSets, workDuration, restDuration } = route.params;
+const TimerScreen = () => {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const {
+    sets: numSets,
+    work: workDuration,
+    rest: restDuration
+  } = route.params;
 
   const [status, setStatus] = useState(TIMER_STATUS.START);
   const [isCounting, setIsCounting] = useState(false);
