@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { View } from 'react-native';
+import { View, Slider } from 'react-native';
 import { Audio } from 'expo-av';
 
 import { Text, Button } from './common';
-import styles from '../style';
+import globalStyles from '../style';
 import { printTimer } from '../modules/format';
-import audioShortBeep from '../../assets/short-beep.mp3';
-import audioLongBeep from '../../assets/long-beep.mp3';
-import audioFinishedBeep from '../../assets/finished-beep.mp3';
+import shortBeepAudio from '../../assets/short-beep.mp3';
+import longBeepAudio from '../../assets/long-beep.mp3';
+import finishedBeepAudio from '../../assets/finished-beep.mp3';
 
 const DEFAULT_START_DURATION = 5;
 const TIMER_STATUS = {
@@ -18,18 +18,40 @@ const TIMER_STATUS = {
   FINISHED: 'FINISHED'
 };
 
-const soundShortBeep = new Audio.Sound();
-const soundLongBeep = new Audio.Sound();
-const soundFinishedBeep = new Audio.Sound();
+// Audio
+const BEEP_SOUNDS = {
+  SHORT: 'SHORT',
+  LONG: 'LONG',
+  FINISHED: 'FINISHED'
+};
+const shortBeepSound = new Audio.Sound();
+const longBeepSound = new Audio.Sound();
+const finishedBeepSound = new Audio.Sound();
+
 (async () => {
-  await soundShortBeep.loadAsync(audioShortBeep);
-  await soundLongBeep.loadAsync(audioLongBeep);
-  await soundFinishedBeep.loadAsync(audioFinishedBeep);
+  await shortBeepSound.loadAsync(shortBeepAudio);
+  await longBeepSound.loadAsync(longBeepAudio);
+  await finishedBeepSound.loadAsync(finishedBeepAudio);
 })();
 
-const playSound = async (sound) => {
+const playAudio = async (soundType, volume = 1) => {
   try {
-    await sound.replayAsync();
+    switch (soundType) {
+      case BEEP_SOUNDS.SHORT:
+        await shortBeepSound.setVolumeAsync(volume);
+        await shortBeepSound.replayAsync();
+        break;
+      case BEEP_SOUNDS.LONG:
+        await longBeepSound.setVolumeAsync(volume);
+        await longBeepSound.replayAsync();
+        break;
+      case BEEP_SOUNDS.FINISHED:
+        await finishedBeepSound.setVolumeAsync(volume);
+        await finishedBeepSound.replayAsync();
+        break;
+      default:
+        throw new Error(`soundType not identified: ${soundType}`);
+    }
   } catch (error) {
     console.error(error);
   }
@@ -44,6 +66,7 @@ const TimerScreen = () => {
     rest: restDuration
   } = route.params;
 
+  const [audioPlayerVolume, setAudioPlayerVolume] = useState(1);
   const [status, setStatus] = useState(TIMER_STATUS.START);
   const [isCounting, setIsCounting] = useState(false);
   const [currentSetsLeft, setCurrentSetsLeft] = useState(0);
@@ -85,12 +108,12 @@ const TimerScreen = () => {
 
         // Countdown sounds
         if ((timer - 1) > 0 && (timer - 1) <= 3) {
-          playSound(soundShortBeep);
+          playAudio(BEEP_SOUNDS.SHORT, audioPlayerVolume);
         } else if ((timer - 1) === 0) {
           if (status === TIMER_STATUS.WORK && currentSetsLeft === 1) {
-            playSound(soundFinishedBeep);
+            playAudio(BEEP_SOUNDS.FINISHED, audioPlayerVolume);
           } else {
-            playSound(soundLongBeep);
+            playAudio(BEEP_SOUNDS.LONG, audioPlayerVolume);
           }
         }
       }, 1000);
@@ -154,8 +177,11 @@ const TimerScreen = () => {
   };
 
   return (
-    <View styles={styles.container}>
-      <View style={styles.horizontalBreak} />
+    <View styles={globalStyles.container}>
+      <Slider
+        value={audioPlayerVolume}
+        onValueChange={(val) => setAudioPlayerVolume(val)}
+      />
       <Text center>
         {`Set #${currentSetsLeft} - ${status}`}
       </Text>
