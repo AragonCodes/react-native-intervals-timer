@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { View } from 'react-native';
+import { Audio } from 'expo-av';
+
 import { Text, Button } from './common';
 import styles from '../style';
 import { printTimer } from '../modules/format';
+import audioShortBeep from '../../assets/short-beep.mp3';
+import audioLongBeep from '../../assets/long-beep.mp3';
+import audioFinishedBeep from '../../assets/finished-beep.mp3';
 
 const DEFAULT_START_DURATION = 5;
 const TIMER_STATUS = {
@@ -11,6 +16,23 @@ const TIMER_STATUS = {
   WORK: 'WORK',
   REST: 'REST',
   FINISHED: 'FINISHED'
+};
+
+const soundShortBeep = new Audio.Sound();
+const soundLongBeep = new Audio.Sound();
+const soundFinishedBeep = new Audio.Sound();
+(async () => {
+  await soundShortBeep.loadAsync(audioShortBeep);
+  await soundLongBeep.loadAsync(audioLongBeep);
+  await soundFinishedBeep.loadAsync(audioFinishedBeep);
+})();
+
+const playSound = async (sound) => {
+  try {
+    await sound.replayAsync();
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const TimerScreen = () => {
@@ -38,6 +60,8 @@ const TimerScreen = () => {
     if (isCounting) {
       timeout = setTimeout(() => {
         timerTick();
+
+        // Interval transition
         if (timer - 1 === 0) {
           if (status === TIMER_STATUS.WORK) {
             if (currentSetsLeft > 1) {
@@ -56,6 +80,17 @@ const TimerScreen = () => {
             if (status === TIMER_STATUS.REST) {
               setCurrentSetsLeft((state) => state - 1);
             }
+          }
+        }
+
+        // Countdown sounds
+        if ((timer - 1) > 0 && (timer - 1) <= 3) {
+          playSound(soundShortBeep);
+        } else if ((timer - 1) === 0) {
+          if (status === TIMER_STATUS.WORK && currentSetsLeft === 1) {
+            playSound(soundFinishedBeep);
+          } else {
+            playSound(soundLongBeep);
           }
         }
       }, 1000);
